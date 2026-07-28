@@ -23,7 +23,7 @@ macOS/Linux:
 cd server
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn main:app --reload --port 8000
+.venv/bin/uvicorn main:app --reload --port 8900
 ```
 
 Windows (PowerShell or cmd):
@@ -32,14 +32,19 @@ Windows (PowerShell or cmd):
 cd server
 python -m venv .venv
 .venv\Scripts\python.exe -m pip install -r requirements.txt
-.venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
+.venv\Scripts\python.exe -m uvicorn main:app --reload --port 8900
 ```
 
 (Use `python -m uvicorn` rather than calling `.venv\Scripts\uvicorn` directly —
 PowerShell doesn't resolve the `.exe` extension for explicit paths, so the
 bare script name fails with "not recognized".)
 
-API docs: http://localhost:8000/docs
+Port 8900 is just this project's default — if it's already taken on your
+machine, pick another free one with `netstat -aon | findstr LISTENING`
+(Windows) or `lsof -iTCP -sTCP:LISTEN` (macOS/Linux), then pass
+`--port <yours>` and update the proxy target in `client/vite.config.js` to match.
+
+API docs: http://localhost:8900/docs
 
 ### Frontend
 
@@ -49,7 +54,7 @@ npm install
 npm run dev
 ```
 
-App: http://localhost:3000 (proxies `/api` to `http://localhost:8000`)
+App: http://localhost:4200 (proxies `/api` to `http://localhost:8900`)
 
 ## API
 
