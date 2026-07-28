@@ -17,12 +17,27 @@ changes.
 
 ### Backend
 
+macOS/Linux:
+
 ```bash
 cd server
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 .venv/bin/uvicorn main:app --reload --port 8000
 ```
+
+Windows (PowerShell or cmd):
+
+```powershell
+cd server
+python -m venv .venv
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m uvicorn main:app --reload --port 8000
+```
+
+(Use `python -m uvicorn` rather than calling `.venv\Scripts\uvicorn` directly —
+PowerShell doesn't resolve the `.exe` extension for explicit paths, so the
+bare script name fails with "not recognized".)
 
 API docs: http://localhost:8000/docs
 
