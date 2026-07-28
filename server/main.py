@@ -6,15 +6,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from cost_engine import calculate_cost_breakdown
 from models import CostBreakdown, DeploymentInput
 from pricing import (
-    AZURE_AI_SEARCH_TIERS,
-    AZURE_OPENAI_MODELS,
-    AZURE_OPENAI_PTU_HOURLY_RATE,
     DEFAULT_IMPLEMENTATION_HOURLY_RATE,
     DEFAULT_SUPPORT_HOURLY_RATE,
-    M365_COPILOT_LICENSE,
+    INFRASTRUCTURE_CATALOG,
+    LICENSE_CATALOG,
+    MODEL_CATALOG,
+    PROVIDERS,
+    RESERVED_THROUGHPUT_HOURLY_RATE,
 )
 
-app = FastAPI(title="Microsoft AI Deployment Cost Modeling API")
+app = FastAPI(title="AI Deployment Cost Modeling API")
 
 cors_origins = os.environ.get("CORS_ORIGINS", "*")
 app.add_middleware(
@@ -33,10 +34,11 @@ def health():
 @app.get("/api/pricing-reference")
 def pricing_reference():
     return {
-        "licensing": M365_COPILOT_LICENSE,
-        "azure_openai_models": AZURE_OPENAI_MODELS,
-        "azure_openai_ptu_hourly_rate": AZURE_OPENAI_PTU_HOURLY_RATE,
-        "azure_ai_search_tiers": AZURE_AI_SEARCH_TIERS,
+        "providers": PROVIDERS,
+        "licensing": LICENSE_CATALOG,
+        "models": MODEL_CATALOG,
+        "reserved_throughput_hourly_rate": RESERVED_THROUGHPUT_HOURLY_RATE,
+        "infrastructure": INFRASTRUCTURE_CATALOG,
         "default_implementation_hourly_rate": DEFAULT_IMPLEMENTATION_HOURLY_RATE,
         "default_support_hourly_rate": DEFAULT_SUPPORT_HOURLY_RATE,
     }

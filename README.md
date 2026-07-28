@@ -1,11 +1,14 @@
-# Microsoft AI Deployment Cost Modeling
+# AI Deployment Cost Modeling
 
-A total-cost-of-ownership (TCO) calculator for Microsoft AI deployments —
-Microsoft 365 Copilot licensing, Azure OpenAI usage, supporting infrastructure
-(Azure AI Search, etc.), and implementation/support effort.
+A total-cost-of-ownership (TCO) calculator for AI deployments across
+**Microsoft**, **Anthropic (Claude)**, and **AWS** — per-seat licensing, AI
+model usage, supporting infrastructure, and implementation/support effort.
+Licensing and usage are repeatable line items, so a deployment can mix
+providers (e.g. some Microsoft 365 Copilot seats alongside direct Claude API
+usage and Amazon Bedrock).
 
 Estimates are based on approximate list pricing and are meant as a planning
-tool, not a quote. Update `server/pricing.py` as Microsoft's published pricing
+tool, not a quote. Update `server/pricing.py` as vendors' published pricing
 changes.
 
 ## Stack
@@ -58,19 +61,23 @@ App: http://localhost:4200 (proxies `/api` to `http://localhost:8900`)
 
 ## API
 
-- `GET /api/pricing-reference` — current pricing assumptions (license tiers,
-  Azure OpenAI model rates, Azure AI Search tiers, default hourly rates)
-- `POST /api/calculate` — takes a deployment description (seats, model,
-  token volume, infrastructure, implementation/support effort) and returns a
-  full cost breakdown (monthly, annual, one-time, first-year total)
+- `GET /api/pricing-reference` — current pricing assumptions for all three
+  providers (license tiers, model usage rates, infrastructure tiers, default
+  hourly rates)
+- `POST /api/calculate` — takes a deployment description (one or more
+  licensing lines, one or more AI usage lines, infrastructure,
+  implementation/support effort) and returns a full cost breakdown (monthly,
+  annual, one-time, first-year total)
 
 ## What's modeled
 
-- **Licensing** — Microsoft 365 Copilot / Copilot Studio per-seat cost, with
-  an optional annual-commitment discount
-- **AI usage** — Azure OpenAI pay-as-you-go token pricing per model, or
-  Provisioned Throughput Units (PTU)
-- **Infrastructure** — Azure AI Search tier, plus any other monthly
-  infrastructure cost
+- **Licensing** (repeatable, per provider) — Microsoft 365 Copilot / Copilot
+  Studio, Claude for Work / Enterprise, Amazon Q Business Lite / Pro — with an
+  optional annual-commitment discount per line
+- **AI usage** (repeatable, per provider) — pay-as-you-go token pricing per
+  model (Azure OpenAI, Claude API, Amazon Bedrock), or reserved/provisioned
+  throughput where a provider offers it (currently Azure OpenAI PTU)
+- **Infrastructure** (repeatable, per provider) — Azure AI Search tier, Amazon
+  OpenSearch Serverless / Kendra, plus any other flat monthly infra cost
 - **Implementation** — one-time integration effort (hours × hourly rate)
 - **Support** — ongoing monthly support effort (hours × hourly rate)

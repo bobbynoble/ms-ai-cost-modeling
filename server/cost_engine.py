@@ -1,15 +1,15 @@
 from pricing import (
     ANNUAL_COMMITMENT_DISCOUNT,
-    AZURE_AI_SEARCH_TIERS,
-    AZURE_OPENAI_MODELS,
-    AZURE_OPENAI_PTU_HOURLY_RATE,
     DEFAULT_IMPLEMENTATION_HOURLY_RATE,
     DEFAULT_SUPPORT_HOURLY_RATE,
-    M365_COPILOT_LICENSE,
+    HOURS_PER_MONTH,
+    INFRASTRUCTURE_CATALOG,
+    LICENSE_CATALOG,
+    MODEL_CATALOG,
+    PROVIDERS,
+    RESERVED_THROUGHPUT_HOURLY_RATE,
 )
 from models import CostBreakdown, CostCategory, CostLineItem, DeploymentInput
-
-HOURS_PER_MONTH = 730  # average hours in a month, used for PTU monthly cost
 
 
 def calculate_cost_breakdown(deployment: DeploymentInput) -> CostBreakdown:
@@ -40,54 +40,49 @@ def calculate_cost_breakdown(deployment: DeploymentInput) -> CostBreakdown:
 
 
 def _calculate_licensing(deployment: DeploymentInput) -> CostCategory:
-    lic = deployment.licensing
-    tier = M365_COPILOT_LICENSE[lic.tier]
-    monthly_per_seat = tier["monthly_per_seat"]
-    if lic.annual_commitment:
-        monthly_per_seat *= 1 - ANNUAL_COMMITMENT_DISCOUNT
+    items: list[CostLineItem] = []
+    monthly = 0.0
 
-    monthly = lic.seats * monthly_per_seat
-    items = [
-        CostLineItem(
-            label=f"{tier['label']} ({lic.seats} seats)",
-            monthly=round(monthly, 2),
-            annual=round(monthly * 12, 2),
+    for line in deployment.licensing:
+        tier = LICENSE_CATALOG[line.provider][line.tier]
+        rate = tier["monthly_per_seat"]
+        if line.annual_commitment:
+            rate *= 1 - ANNUAL_COMMITMENT_DISCOUNT
+        line_monthly = line.seats * rate
+        monthly += line_monthly
+        items.append(
+            CostLineItem(
+                label=f"{PROVIDERS[line.provider]} — {tier['label']} ({line.seats} seats)",
+                monthly=round(line_monthly, 2),
+                annual=round(line_monthly * 12, 2),
+            )
         )
-    ]
+
     return CostCategory(
         label="Licensing", monthly=round(monthly, 2), annual=round(monthly * 12, 2), items=items
     )
 
 
 def _calculate_ai_usage(deployment: DeploymentInput) -> CostCategory:
-    ai = deployment.azure_openai
     items: list[CostLineItem] = []
     monthly = 0.0
 
-    if ai.enabled:
-        if ai.use_ptu:
-            ptu_monthly = ai.ptu_units * AZURE_OPENAI_PTU_HOURLY_RATE * HOURS_PER_MONTH
-            monthly += ptu_monthly
-            items.append(
-                CostLineItem(
-                    label=f"Azure OpenAI PTU ({ai.ptu_units} units)",
-                    monthly=round(ptu_monthly, 2),
-                    annual=round(ptu_monthly * 12, 2),
-                )
-            )
+    for line in deployment.ai_usage:
+        if line.use_reserved:
+            hourly_rate = RESERVED_THROUGHPUT_HOURLY_RATE[line.provider]
+            line_monthly = line.reserved_units * hourly_rate * HOURS_PER_MONTH
+            label = f"{PROVIDERS[line.provider]} — reserved throughput ({line.reserved_units} units)"
         else:
-            model = AZURE_OPENAI_MODELS[ai.model]
-            input_cost = (ai.monthly_input_tokens / 1000) * model["input_per_1k"]
-            output_cost = (ai.monthly_output_tokens / 1000) * model["output_per_1k"]
-            token_monthly = input_cost + output_cost
-            monthly += token_monthly
-            items.append(
-                CostLineItem(
-                    label=f"Azure OpenAI {model['label']} (pay-as-you-go)",
-                    monthly=round(token_monthly, 2),
-                    annual=round(token_monthly * 12, 2),
-                )
-            )
+            model = MODEL_CATALOG[line.provider][line.model]
+            input_cost = (line.monthly_input_tokens / 1000) * model["input_per_1k"]
+            output_cost = (line.monthly_output_tokens / 1000) * model["output_per_1k"]
+            line_monthly = input_cost + output_cost
+            label = f"{PROVIDERS[line.provider]} — {model['label']} (pay-as-you-go)"
+
+        monthly += line_monthly
+        items.append(
+            CostLineItem(label=label, monthly=round(line_monthly, 2), annual=round(line_monthly * 12, 2))
+        )
 
     return CostCategory(
         label="AI Usage", monthly=round(monthly, 2), annual=round(monthly * 12, 2), items=items
@@ -95,28 +90,27 @@ def _calculate_ai_usage(deployment: DeploymentInput) -> CostCategory:
 
 
 def _calculate_infrastructure(deployment: DeploymentInput) -> CostCategory:
-    infra = deployment.infrastructure
     items: list[CostLineItem] = []
     monthly = 0.0
 
-    if infra.azure_ai_search_enabled:
-        tier = AZURE_AI_SEARCH_TIERS[infra.azure_ai_search_tier]
-        monthly += tier["monthly"]
+    for line in deployment.infrastructure:
+        entry = INFRASTRUCTURE_CATALOG[line.provider][line.item]
+        monthly += entry["monthly"]
         items.append(
             CostLineItem(
-                label=f"Azure AI Search ({tier['label']})",
-                monthly=round(tier["monthly"], 2),
-                annual=round(tier["monthly"] * 12, 2),
+                label=f"{PROVIDERS[line.provider]} — {entry['label']}",
+                monthly=round(entry["monthly"], 2),
+                annual=round(entry["monthly"] * 12, 2),
             )
         )
 
-    if infra.other_monthly_infra_cost:
-        monthly += infra.other_monthly_infra_cost
+    if deployment.other_monthly_infra_cost:
+        monthly += deployment.other_monthly_infra_cost
         items.append(
             CostLineItem(
                 label="Other infrastructure",
-                monthly=round(infra.other_monthly_infra_cost, 2),
-                annual=round(infra.other_monthly_infra_cost * 12, 2),
+                monthly=round(deployment.other_monthly_infra_cost, 2),
+                annual=round(deployment.other_monthly_infra_cost * 12, 2),
             )
         )
 

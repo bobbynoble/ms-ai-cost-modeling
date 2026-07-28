@@ -34,10 +34,11 @@ async function handleCalculate(deployment) {
 <template>
   <div class="app-shell">
     <header>
-      <h1>Microsoft AI Deployment Cost Modeling</h1>
+      <h1>AI Deployment Cost Modeling</h1>
       <p class="subtitle">
-        Estimate total cost of ownership for a Microsoft 365 Copilot / Azure OpenAI deployment —
-        licensing, AI usage, infrastructure, and implementation effort.
+        Estimate total cost of ownership across Microsoft, Anthropic (Claude), and AWS —
+        licensing, AI usage, infrastructure, and implementation effort, mixed and matched
+        across providers.
       </p>
     </header>
 

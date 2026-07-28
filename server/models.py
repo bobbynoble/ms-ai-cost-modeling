@@ -1,34 +1,27 @@
-from typing import Literal, Optional
+from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from pricing import AZURE_AI_SEARCH_TIERS, AZURE_OPENAI_MODELS, M365_COPILOT_LICENSE
 
-
-LicenseTier = Literal[tuple(M365_COPILOT_LICENSE.keys())]
-OpenAIModel = Literal[tuple(AZURE_OPENAI_MODELS.keys())]
-SearchTier = Literal[tuple(AZURE_AI_SEARCH_TIERS.keys())]
-
-
-class LicensingInput(BaseModel):
-    seats: int = Field(..., ge=0, description="Number of licensed users")
-    tier: LicenseTier = "m365_copilot"
+class LicenseLine(BaseModel):
+    provider: str = Field(..., description="Key into LICENSE_CATALOG, e.g. 'microsoft'")
+    tier: str = Field(..., description="Key into LICENSE_CATALOG[provider]")
+    seats: int = Field(..., ge=0)
     annual_commitment: bool = Field(False, description="Upfront annual commitment discount")
 
 
-class AzureOpenAIInput(BaseModel):
-    enabled: bool = True
-    model: OpenAIModel = "gpt-4o"
-    monthly_input_tokens: int = Field(0, ge=0, description="Total input tokens per month")
-    monthly_output_tokens: int = Field(0, ge=0, description="Total output tokens per month")
-    use_ptu: bool = Field(False, description="Use Provisioned Throughput Units instead of pay-as-you-go")
-    ptu_units: int = Field(0, ge=0, description="Number of PTUs reserved, if use_ptu is true")
+class UsageLine(BaseModel):
+    provider: str = Field(..., description="Key into MODEL_CATALOG, e.g. 'anthropic'")
+    model: str = Field(..., description="Key into MODEL_CATALOG[provider]")
+    monthly_input_tokens: int = Field(0, ge=0)
+    monthly_output_tokens: int = Field(0, ge=0)
+    use_reserved: bool = Field(False, description="Use reserved/provisioned throughput instead of pay-as-you-go")
+    reserved_units: int = Field(0, ge=0, description="Reserved throughput units, if use_reserved is true")
 
 
-class InfrastructureInput(BaseModel):
-    azure_ai_search_enabled: bool = False
-    azure_ai_search_tier: SearchTier = "basic"
-    other_monthly_infra_cost: float = Field(0, ge=0, description="Other monthly infra (storage, App Service, networking, etc.)")
+class InfrastructureLine(BaseModel):
+    provider: str = Field(..., description="Key into INFRASTRUCTURE_CATALOG, e.g. 'aws'")
+    item: str = Field(..., description="Key into INFRASTRUCTURE_CATALOG[provider]")
 
 
 class ImplementationInput(BaseModel):
@@ -42,9 +35,10 @@ class SupportInput(BaseModel):
 
 
 class DeploymentInput(BaseModel):
-    licensing: LicensingInput
-    azure_openai: AzureOpenAIInput
-    infrastructure: InfrastructureInput
+    licensing: list[LicenseLine] = Field(default_factory=list)
+    ai_usage: list[UsageLine] = Field(default_factory=list)
+    infrastructure: list[InfrastructureLine] = Field(default_factory=list)
+    other_monthly_infra_cost: float = Field(0, ge=0)
     implementation: ImplementationInput
     support: SupportInput
 

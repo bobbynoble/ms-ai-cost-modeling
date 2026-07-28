@@ -7,24 +7,63 @@ const props = defineProps({
 
 const emit = defineEmits(["calculate"]);
 
+const licensingProviders = Object.keys(props.pricing.licensing);
+const modelProviders = Object.keys(props.pricing.models);
+const infraProviders = Object.keys(props.pricing.infrastructure);
+
+function firstTier(provider) {
+  return Object.keys(props.pricing.licensing[provider])[0];
+}
+function firstModel(provider) {
+  return Object.keys(props.pricing.models[provider])[0];
+}
+function firstInfraItem(provider) {
+  return Object.keys(props.pricing.infrastructure[provider])[0];
+}
+function supportsReserved(provider) {
+  return provider in props.pricing.reserved_throughput_hourly_rate;
+}
+
+function newLicenseLine() {
+  const provider = licensingProviders[0];
+  return { provider, tier: firstTier(provider), seats: 100, annual_commitment: false };
+}
+function newUsageLine() {
+  const provider = modelProviders[0];
+  return {
+    provider,
+    model: firstModel(provider),
+    monthly_input_tokens: 5000000,
+    monthly_output_tokens: 1500000,
+    use_reserved: false,
+    reserved_units: 0,
+  };
+}
+function newInfraLine() {
+  const provider = infraProviders[0];
+  return { provider, item: firstInfraItem(provider) };
+}
+
 const form = reactive({
-  licensing: { seats: 500, tier: "m365_copilot", annual_commitment: false },
-  azure_openai: {
-    enabled: true,
-    model: "gpt-4o",
-    monthly_input_tokens: 20000000,
-    monthly_output_tokens: 6000000,
-    use_ptu: false,
-    ptu_units: 0,
-  },
-  infrastructure: {
-    azure_ai_search_enabled: false,
-    azure_ai_search_tier: "basic",
-    other_monthly_infra_cost: 0,
-  },
+  licensing: [newLicenseLine()],
+  ai_usage: [newUsageLine()],
+  infrastructure: [],
+  other_monthly_infra_cost: 0,
   implementation: { hours: 160, hourly_rate: null },
   support: { monthly_hours: 20, hourly_rate: null },
 });
+
+function onLicenseProviderChange(line) {
+  line.tier = firstTier(line.provider);
+}
+function onUsageProviderChange(line) {
+  line.model = firstModel(line.provider);
+  line.use_reserved = false;
+  line.reserved_units = 0;
+}
+function onInfraProviderChange(line) {
+  line.item = firstInfraItem(line.provider);
+}
 
 function submit() {
   emit("calculate", JSON.parse(JSON.stringify(form)));
@@ -34,80 +73,96 @@ function submit() {
 <template>
   <form class="input-form" @submit.prevent="submit">
     <fieldset>
-      <legend>Licensing</legend>
-      <label>
-        Seats
-        <input v-model.number="form.licensing.seats" type="number" min="0" />
-      </label>
-      <label>
-        License tier
-        <select v-model="form.licensing.tier">
-          <option v-for="(v, k) in pricing.licensing" :key="k" :value="k">
-            {{ v.label }} (${{ v.monthly_per_seat.toFixed(2) }}/seat/mo)
-          </option>
-        </select>
-      </label>
-      <label class="checkbox">
-        <input v-model="form.licensing.annual_commitment" type="checkbox" />
-        Annual commitment discount
-      </label>
+      <legend>Licensing (per-seat)</legend>
+      <div v-for="(line, i) in form.licensing" :key="i" class="line-item">
+        <label>
+          Provider
+          <select v-model="line.provider" @change="onLicenseProviderChange(line)">
+            <option v-for="p in licensingProviders" :key="p" :value="p">{{ pricing.providers[p] }}</option>
+          </select>
+        </label>
+        <label>
+          Tier
+          <select v-model="line.tier">
+            <option v-for="(v, k) in pricing.licensing[line.provider]" :key="k" :value="k">
+              {{ v.label }} (${{ v.monthly_per_seat.toFixed(2) }}/seat/mo)
+            </option>
+          </select>
+        </label>
+        <label>
+          Seats
+          <input v-model.number="line.seats" type="number" min="0" />
+        </label>
+        <label class="checkbox">
+          <input v-model="line.annual_commitment" type="checkbox" />
+          Annual commitment discount
+        </label>
+        <button type="button" class="remove" @click="form.licensing.splice(i, 1)">Remove</button>
+      </div>
+      <button type="button" class="add" @click="form.licensing.push(newLicenseLine())">+ Add licensing line</button>
     </fieldset>
 
     <fieldset>
-      <legend>Azure OpenAI usage</legend>
-      <label class="checkbox">
-        <input v-model="form.azure_openai.enabled" type="checkbox" />
-        Include Azure OpenAI usage
-      </label>
-      <template v-if="form.azure_openai.enabled">
-        <label class="checkbox">
-          <input v-model="form.azure_openai.use_ptu" type="checkbox" />
-          Use Provisioned Throughput (PTU) instead of pay-as-you-go
+      <legend>AI usage</legend>
+      <div v-for="(line, i) in form.ai_usage" :key="i" class="line-item">
+        <label>
+          Provider
+          <select v-model="line.provider" @change="onUsageProviderChange(line)">
+            <option v-for="p in modelProviders" :key="p" :value="p">{{ pricing.providers[p] }}</option>
+          </select>
         </label>
-        <template v-if="!form.azure_openai.use_ptu">
+        <label v-if="supportsReserved(line.provider)" class="checkbox">
+          <input v-model="line.use_reserved" type="checkbox" />
+          Use reserved/provisioned throughput
+        </label>
+        <template v-if="!line.use_reserved">
           <label>
             Model
-            <select v-model="form.azure_openai.model">
-              <option v-for="(v, k) in pricing.azure_openai_models" :key="k" :value="k">
-                {{ v.label }}
-              </option>
+            <select v-model="line.model">
+              <option v-for="(v, k) in pricing.models[line.provider]" :key="k" :value="k">{{ v.label }}</option>
             </select>
           </label>
           <label>
             Monthly input tokens
-            <input v-model.number="form.azure_openai.monthly_input_tokens" type="number" min="0" />
+            <input v-model.number="line.monthly_input_tokens" type="number" min="0" />
           </label>
           <label>
             Monthly output tokens
-            <input v-model.number="form.azure_openai.monthly_output_tokens" type="number" min="0" />
+            <input v-model.number="line.monthly_output_tokens" type="number" min="0" />
           </label>
         </template>
-        <template v-else>
-          <label>
-            PTU units
-            <input v-model.number="form.azure_openai.ptu_units" type="number" min="0" />
-          </label>
-        </template>
-      </template>
+        <label v-else>
+          Reserved units
+          <input v-model.number="line.reserved_units" type="number" min="0" />
+        </label>
+        <button type="button" class="remove" @click="form.ai_usage.splice(i, 1)">Remove</button>
+      </div>
+      <button type="button" class="add" @click="form.ai_usage.push(newUsageLine())">+ Add usage line</button>
     </fieldset>
 
     <fieldset>
       <legend>Infrastructure</legend>
-      <label class="checkbox">
-        <input v-model="form.infrastructure.azure_ai_search_enabled" type="checkbox" />
-        Include Azure AI Search
-      </label>
-      <label v-if="form.infrastructure.azure_ai_search_enabled">
-        Search tier
-        <select v-model="form.infrastructure.azure_ai_search_tier">
-          <option v-for="(v, k) in pricing.azure_ai_search_tiers" :key="k" :value="k">
-            {{ v.label }} (${{ v.monthly.toFixed(2) }}/mo)
-          </option>
-        </select>
-      </label>
+      <div v-for="(line, i) in form.infrastructure" :key="i" class="line-item">
+        <label>
+          Provider
+          <select v-model="line.provider" @change="onInfraProviderChange(line)">
+            <option v-for="p in infraProviders" :key="p" :value="p">{{ pricing.providers[p] }}</option>
+          </select>
+        </label>
+        <label>
+          Item
+          <select v-model="line.item">
+            <option v-for="(v, k) in pricing.infrastructure[line.provider]" :key="k" :value="k">
+              {{ v.label }} (${{ v.monthly.toFixed(2) }}/mo)
+            </option>
+          </select>
+        </label>
+        <button type="button" class="remove" @click="form.infrastructure.splice(i, 1)">Remove</button>
+      </div>
+      <button type="button" class="add" @click="form.infrastructure.push(newInfraLine())">+ Add infrastructure line</button>
       <label>
         Other monthly infrastructure cost ($)
-        <input v-model.number="form.infrastructure.other_monthly_infra_cost" type="number" min="0" />
+        <input v-model.number="form.other_monthly_infra_cost" type="number" min="0" />
       </label>
     </fieldset>
 
@@ -135,7 +190,7 @@ function submit() {
       </label>
     </fieldset>
 
-    <button type="submit">Calculate cost</button>
+    <button type="submit" class="submit">Calculate cost</button>
   </form>
 </template>
 
@@ -152,12 +207,22 @@ fieldset {
   padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
+  gap: 0.75rem;
 }
 
 legend {
   font-weight: 600;
   padding: 0 0.4rem;
+}
+
+.line-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border-hairline, rgba(11, 11, 11, 0.08));
+  border-radius: 6px;
+  background: rgba(42, 120, 214, 0.03);
 }
 
 label {
@@ -181,7 +246,23 @@ select {
   font-size: 0.95rem;
 }
 
-button {
+button.add,
+button.remove {
+  align-self: flex-start;
+  padding: 0.35rem 0.8rem;
+  border-radius: 6px;
+  border: 1px solid rgba(11, 11, 11, 0.2);
+  background: transparent;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+button.remove {
+  color: #d03b3b;
+  border-color: #d03b3b;
+}
+
+button.submit {
   align-self: flex-start;
   padding: 0.6rem 1.4rem;
   border-radius: 6px;
@@ -192,7 +273,7 @@ button {
   cursor: pointer;
 }
 
-button:hover {
+button.submit:hover {
   background: #1c5cab;
 }
 </style>
