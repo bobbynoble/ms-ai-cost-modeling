@@ -7,10 +7,15 @@ import { fetchPricingReference, calculateCost } from "./api.js";
 const pricing = ref(null);
 const breakdown = ref(null);
 const error = ref(null);
+const pricingError = ref(null);
 const loading = ref(false);
 
 onMounted(async () => {
-  pricing.value = await fetchPricingReference();
+  try {
+    pricing.value = await fetchPricingReference();
+  } catch (e) {
+    pricingError.value = `Could not reach the backend API: ${e.message}`;
+  }
 });
 
 async function handleCalculate(deployment) {
@@ -48,6 +53,9 @@ async function handleCalculate(deployment) {
         <p v-else-if="!loading" class="hint">Fill in the deployment details and click "Calculate cost".</p>
       </section>
     </main>
+    <p v-else-if="pricingError" class="error">
+      {{ pricingError }} — is the backend running on http://localhost:8000?
+    </p>
     <p v-else>Loading pricing reference…</p>
 
     <footer>
